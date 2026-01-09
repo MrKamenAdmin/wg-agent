@@ -1,0 +1,19 @@
+# Binaries
+wg-agent
+*.exe
+
+# Environment
+.env
+
+# Certificates
+certs/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db

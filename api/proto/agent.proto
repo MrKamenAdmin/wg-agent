@@ -1,0 +1,193 @@
+syntax = "proto3";
+
+package wgagent;
+
+option go_package = "wg-agent/api/proto";
+
+// WGAgent is the service that runs on each WireGuard server.
+// It provides remote execution of WireGuard operations via gRPC with mTLS.
+service WGAgent {
+  // Health check
+  rpc Health(HealthRequest) returns (HealthResponse);
+
+  // WireGuard operations
+  rpc Show(ShowRequest) returns (ShowResponse);
+  rpc SyncConf(SyncConfRequest) returns (SyncConfResponse);
+  rpc SetPeer(SetPeerRequest) returns (SetPeerResponse);
+  rpc RemovePeer(RemovePeerRequest) returns (RemovePeerResponse);
+  rpc GenPSK(GenPSKRequest) returns (GenPSKResponse);
+  rpc GenKeyPair(GenKeyPairRequest) returns (GenKeyPairResponse);
+
+  // Config file operations
+  rpc ReadConfig(ReadConfigRequest) returns (ReadConfigResponse);
+  rpc WriteConfig(WriteConfigRequest) returns (WriteConfigResponse);
+
+  // Backup operations
+  rpc ListBackups(ListBackupsRequest) returns (ListBackupsResponse);
+  rpc CreateBackup(CreateBackupRequest) returns (CreateBackupResponse);
+  rpc GetBackup(GetBackupRequest) returns (stream BackupChunk);
+  rpc RestoreBackup(RestoreBackupRequest) returns (RestoreBackupResponse);
+  rpc DeleteBackup(DeleteBackupRequest) returns (DeleteBackupResponse);
+}
+
+// Health messages
+message HealthRequest {}
+
+message HealthResponse {
+  string version = 1;
+  string hostname = 2;
+  int64 uptime_seconds = 3;
+  repeated string available_interfaces = 4;
+}
+
+// Show messages - equivalent to `wg show <interface> dump`
+message ShowRequest {
+  string interface_name = 1;
+}
+
+message ShowResponse {
+  string public_key = 1;
+  int32 listen_port = 2;
+  int64 fwmark = 3;
+  repeated PeerStatus peers = 4;
+}
+
+message PeerStatus {
+  string public_key = 1;
+  string preshared_key_set = 2;  // "true" or "false" or "(none)"
+  string endpoint = 3;
+  repeated string allowed_ips = 4;
+  int64 latest_handshake_unix = 5;
+  int64 transfer_rx = 6;
+  int64 transfer_tx = 7;
+  int32 persistent_keepalive = 8;
+}
+
+// SyncConf messages - equivalent to `wg syncconf <interface> <config>`
+message SyncConfRequest {
+  string interface_name = 1;
+  bytes config_content = 2;  // Stripped config content (without Interface section)
+}
+
+message SyncConfResponse {
+  bool success = 1;
+  string error = 2;
+}
+
+// SetPeer messages - equivalent to `wg set <interface> peer <pubkey> ...`
+message SetPeerRequest {
+  string interface_name = 1;
+  string public_key = 2;
+  repeated string allowed_ips = 3;
+  optional string endpoint = 4;
+  optional int32 persistent_keepalive = 5;
+  optional string preshared_key = 6;
+  bool remove_preshared_key = 7;  // Set to true to remove PSK
+}
+
+message SetPeerResponse {
+  bool success = 1;
+  string error = 2;
+}
+
+// RemovePeer messages - equivalent to `wg set <interface> peer <pubkey> remove`
+message RemovePeerRequest {
+  string interface_name = 1;
+  string public_key = 2;
+}
+
+message RemovePeerResponse {
+  bool success = 1;
+  string error = 2;
+}
+
+// GenPSK messages - equivalent to `wg genpsk`
+message GenPSKRequest {}
+
+message GenPSKResponse {
+  string preshared_key = 1;
+}
+
+// GenKeyPair messages - equivalent to `wg genkey` + `wg pubkey`
+message GenKeyPairRequest {}
+
+message GenKeyPairResponse {
+  string private_key = 1;
+  string public_key = 2;
+}
+
+// ReadConfig messages - read WireGuard config file
+message ReadConfigRequest {
+  string interface_name = 1;
+}
+
+message ReadConfigResponse {
+  bytes content = 1;
+  int64 modified_at_unix = 2;
+}
+
+// WriteConfig messages - write WireGuard config file atomically
+message WriteConfigRequest {
+  string interface_name = 1;
+  bytes content = 2;
+  bool create_backup = 3;  // Create backup before writing
+}
+
+message WriteConfigResponse {
+  bool success = 1;
+  string error = 2;
+  string backup_name = 3;  // Name of backup file if created
+}
+
+// Backup messages
+message ListBackupsRequest {
+  string interface_name = 1;  // Optional: filter by interface
+}
+
+message BackupInfo {
+  string name = 1;
+  string interface_name = 2;
+  int64 size_bytes = 3;
+  int64 created_at_unix = 4;
+}
+
+message ListBackupsResponse {
+  repeated BackupInfo backups = 1;
+}
+
+message CreateBackupRequest {
+  string interface_name = 1;
+}
+
+message CreateBackupResponse {
+  bool success = 1;
+  string error = 2;
+  BackupInfo backup = 3;
+}
+
+message GetBackupRequest {
+  string name = 1;
+}
+
+message BackupChunk {
+  bytes data = 1;
+}
+
+message RestoreBackupRequest {
+  string name = 1;
+  string interface_name = 2;
+}
+
+message RestoreBackupResponse {
+  bool success = 1;
+  string error = 2;
+}
+
+message DeleteBackupRequest {
+  string name = 1;
+}
+
+message DeleteBackupResponse {
+  bool success = 1;
+  string error = 2;
+}

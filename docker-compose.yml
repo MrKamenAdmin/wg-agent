@@ -1,0 +1,16 @@
+services:
+  wg-agent:
+    build: .
+    container_name: wg-agent
+    restart: unless-stopped
+    privileged: true
+    network_mode: host
+    volumes:
+      - /etc/wireguard:/etc/wireguard
+      - ./certs:/etc/wg-agent:ro
+      - wg-agent-backups:/var/lib/wg-agent/backups
+    env_file:
+      - .env
+
+volumes:
+  wg-agent-backups:
