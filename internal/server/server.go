@@ -618,7 +618,7 @@ func (s *WGAgentServer) UpdateBypassConfig(ctx context.Context, req *pb.UpdateBy
 		}, nil
 	}
 
-	out, err := runCommand("systemctl", "restart", "dnsmasq")
+	out, err := s.runHostCommand("systemctl", "restart", "dnsmasq")
 	if err != nil {
 		return &pb.UpdateBypassConfigResponse{
 			Success:       false,
@@ -650,7 +650,7 @@ func (s *WGAgentServer) ClearBypassIpset(ctx context.Context, req *pb.ClearBypas
 		}, nil
 	}
 
-	flushOut, err := runCommand("ipset", "flush", name)
+	flushOut, err := s.runHostCommand("ipset", "flush", name)
 	if err != nil {
 		return &pb.ClearBypassIpsetResponse{
 			Success:     false,
@@ -659,7 +659,7 @@ func (s *WGAgentServer) ClearBypassIpset(ctx context.Context, req *pb.ClearBypas
 		}, nil
 	}
 
-	restartOut, err := runCommand("systemctl", "restart", "dnsmasq")
+	restartOut, err := s.runHostCommand("systemctl", "restart", "dnsmasq")
 	if err != nil {
 		return &pb.ClearBypassIpsetResponse{
 			Success:       false,
@@ -721,9 +721,37 @@ func writeFileAtomic(path string, content []byte, mode os.FileMode) error {
 	return nil
 }
 
-func runCommand(name string, args ...string) (string, error) {
+// runHostCommand runs `name args...` targeting the host.
+//
+// Resolution order:
+//  1. If AGENT_DNSMASQ_CMD_PREFIX is set, prepend it verbatim.
+//  2. Otherwise, if `name` is available in PATH, run it directly.
+//  3. Otherwise, if `nsenter` is available, fall back to
+//     `nsenter -t 1 -a -- <name> <args>` (requires pid:host for containers).
+//
+// This way the feature works out of the box both on bare-metal hosts and in
+// docker with pid:host + util-linux in the image.
+func (s *WGAgentServer) runHostCommand(name string, args ...string) (string, error) {
+	var full []string
+	switch {
+	case len(s.config.DNSMasqCmdPrefix) > 0:
+		full = append(full, s.config.DNSMasqCmdPrefix...)
+		full = append(full, name)
+		full = append(full, args...)
+	default:
+		if _, err := exec.LookPath(name); err == nil {
+			full = append(full, name)
+			full = append(full, args...)
+		} else if _, nserr := exec.LookPath("nsenter"); nserr == nil {
+			full = append(full, "nsenter", "-t", "1", "-a", "--", name)
+			full = append(full, args...)
+		} else {
+			return "", fmt.Errorf("%s not found in PATH and nsenter is unavailable; set AGENT_DNSMASQ_CMD_PREFIX", name)
+		}
+	}
+
 	var buf bytes.Buffer
-	cmd := exec.Command(name, args...)
+	cmd := exec.Command(full[0], full[1:]...)
 	cmd.Stdout = &buf
 	cmd.Stderr = &buf
 	err := cmd.Run()

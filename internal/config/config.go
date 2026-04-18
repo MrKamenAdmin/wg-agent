@@ -27,6 +27,10 @@ type Config struct {
 	// Empty DNSMasqBypassConfPath disables the feature on this agent.
 	DNSMasqBypassConfPath string
 	DNSMasqIPSetName      string
+	// DNSMasqCmdPrefix is prepended to `systemctl` / `ipset` invocations.
+	// Used to run them in the host namespaces from a container, e.g.
+	// "nsenter -t 1 -a --".
+	DNSMasqCmdPrefix []string
 }
 
 // Load loads configuration from environment variables
@@ -43,6 +47,7 @@ func Load() (*Config, error) {
 
 		DNSMasqBypassConfPath: getEnv("AGENT_DNSMASQ_BYPASS_CONF", ""),
 		DNSMasqIPSetName:      getEnv("AGENT_DNSMASQ_IPSET_NAME", "bypass_vpn"),
+		DNSMasqCmdPrefix:      strings.Fields(getEnv("AGENT_DNSMASQ_CMD_PREFIX", "")),
 	}
 
 	// Validate TLS configuration

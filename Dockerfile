@@ -18,8 +18,10 @@ RUN CGO_ENABLED=0 GOOS=linux go build -ldflags="-s -w" -o /wg-agent ./cmd/agent
 # Runtime stage
 FROM alpine:3.19
 
-# Install WireGuard tools and dependencies for wg-quick
-RUN apk add --no-cache wireguard-tools bash iproute2 iptables
+# Install WireGuard tools and dependencies for wg-quick.
+# util-linux supplies `nsenter`, which the agent uses to run systemctl/ipset
+# in the host's namespaces when running under docker with pid:host.
+RUN apk add --no-cache wireguard-tools bash iproute2 iptables ipset util-linux
 
 # Create directories
 RUN mkdir -p /etc/wg-agent /var/lib/wg-agent/backups
