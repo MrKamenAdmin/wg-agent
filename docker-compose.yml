@@ -5,10 +5,15 @@ services:
     restart: unless-stopped
     privileged: true
     network_mode: host
+    # pid: host лets the agent run systemctl/ipset in the host's namespaces
+    # via `nsenter -t 1 -a --` (set AGENT_DNSMASQ_CMD_PREFIX="nsenter -t 1 -a --").
+    pid: host
     volumes:
       - /etc/wireguard:/etc/wireguard
       - /etc/wg-agent:/etc/wg-agent:ro
       - wg-agent-backups:/var/lib/wg-agent/backups
+      # dnsmasq bypass.conf integration (no-op on hosts without dnsmasq).
+      - /etc/dnsmasq.d:/etc/dnsmasq.d
     env_file:
       - .env
 

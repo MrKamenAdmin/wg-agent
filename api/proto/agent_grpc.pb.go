@@ -4,7 +4,7 @@
 // - protoc             v6.33.2
 // source: api/proto/agent.proto
 
-package wgagent
+package proto
 
 import (
 	context "context"
@@ -19,20 +19,23 @@ import (
 const _ = grpc.SupportPackageIsVersion9
 
 const (
-	WGAgent_Health_FullMethodName        = "/wgagent.WGAgent/Health"
-	WGAgent_Show_FullMethodName          = "/wgagent.WGAgent/Show"
-	WGAgent_SyncConf_FullMethodName      = "/wgagent.WGAgent/SyncConf"
-	WGAgent_SetPeer_FullMethodName       = "/wgagent.WGAgent/SetPeer"
-	WGAgent_RemovePeer_FullMethodName    = "/wgagent.WGAgent/RemovePeer"
-	WGAgent_GenPSK_FullMethodName        = "/wgagent.WGAgent/GenPSK"
-	WGAgent_GenKeyPair_FullMethodName    = "/wgagent.WGAgent/GenKeyPair"
-	WGAgent_ReadConfig_FullMethodName    = "/wgagent.WGAgent/ReadConfig"
-	WGAgent_WriteConfig_FullMethodName   = "/wgagent.WGAgent/WriteConfig"
-	WGAgent_ListBackups_FullMethodName   = "/wgagent.WGAgent/ListBackups"
-	WGAgent_CreateBackup_FullMethodName  = "/wgagent.WGAgent/CreateBackup"
-	WGAgent_GetBackup_FullMethodName     = "/wgagent.WGAgent/GetBackup"
-	WGAgent_RestoreBackup_FullMethodName = "/wgagent.WGAgent/RestoreBackup"
-	WGAgent_DeleteBackup_FullMethodName  = "/wgagent.WGAgent/DeleteBackup"
+	WGAgent_Health_FullMethodName             = "/wgagent.WGAgent/Health"
+	WGAgent_Show_FullMethodName               = "/wgagent.WGAgent/Show"
+	WGAgent_SyncConf_FullMethodName           = "/wgagent.WGAgent/SyncConf"
+	WGAgent_SetPeer_FullMethodName            = "/wgagent.WGAgent/SetPeer"
+	WGAgent_RemovePeer_FullMethodName         = "/wgagent.WGAgent/RemovePeer"
+	WGAgent_GenPSK_FullMethodName             = "/wgagent.WGAgent/GenPSK"
+	WGAgent_GenKeyPair_FullMethodName         = "/wgagent.WGAgent/GenKeyPair"
+	WGAgent_ReadConfig_FullMethodName         = "/wgagent.WGAgent/ReadConfig"
+	WGAgent_WriteConfig_FullMethodName        = "/wgagent.WGAgent/WriteConfig"
+	WGAgent_ListBackups_FullMethodName        = "/wgagent.WGAgent/ListBackups"
+	WGAgent_CreateBackup_FullMethodName       = "/wgagent.WGAgent/CreateBackup"
+	WGAgent_GetBackup_FullMethodName          = "/wgagent.WGAgent/GetBackup"
+	WGAgent_RestoreBackup_FullMethodName      = "/wgagent.WGAgent/RestoreBackup"
+	WGAgent_DeleteBackup_FullMethodName       = "/wgagent.WGAgent/DeleteBackup"
+	WGAgent_GetBypassConfig_FullMethodName    = "/wgagent.WGAgent/GetBypassConfig"
+	WGAgent_UpdateBypassConfig_FullMethodName = "/wgagent.WGAgent/UpdateBypassConfig"
+	WGAgent_ClearBypassIpset_FullMethodName   = "/wgagent.WGAgent/ClearBypassIpset"
 )
 
 // WGAgentClient is the client API for WGAgent service.
@@ -60,6 +63,10 @@ type WGAgentClient interface {
 	GetBackup(ctx context.Context, in *GetBackupRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[BackupChunk], error)
 	RestoreBackup(ctx context.Context, in *RestoreBackupRequest, opts ...grpc.CallOption) (*RestoreBackupResponse, error)
 	DeleteBackup(ctx context.Context, in *DeleteBackupRequest, opts ...grpc.CallOption) (*DeleteBackupResponse, error)
+	// dnsmasq bypass.conf operations (only available if AGENT_DNSMASQ_BYPASS_CONF is set).
+	GetBypassConfig(ctx context.Context, in *GetBypassConfigRequest, opts ...grpc.CallOption) (*GetBypassConfigResponse, error)
+	UpdateBypassConfig(ctx context.Context, in *UpdateBypassConfigRequest, opts ...grpc.CallOption) (*UpdateBypassConfigResponse, error)
+	ClearBypassIpset(ctx context.Context, in *ClearBypassIpsetRequest, opts ...grpc.CallOption) (*ClearBypassIpsetResponse, error)
 }
 
 type wGAgentClient struct {
@@ -219,6 +226,36 @@ func (c *wGAgentClient) DeleteBackup(ctx context.Context, in *DeleteBackupReques
 	return out, nil
 }
 
+func (c *wGAgentClient) GetBypassConfig(ctx context.Context, in *GetBypassConfigRequest, opts ...grpc.CallOption) (*GetBypassConfigResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(GetBypassConfigResponse)
+	err := c.cc.Invoke(ctx, WGAgent_GetBypassConfig_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *wGAgentClient) UpdateBypassConfig(ctx context.Context, in *UpdateBypassConfigRequest, opts ...grpc.CallOption) (*UpdateBypassConfigResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(UpdateBypassConfigResponse)
+	err := c.cc.Invoke(ctx, WGAgent_UpdateBypassConfig_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *wGAgentClient) ClearBypassIpset(ctx context.Context, in *ClearBypassIpsetRequest, opts ...grpc.CallOption) (*ClearBypassIpsetResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ClearBypassIpsetResponse)
+	err := c.cc.Invoke(ctx, WGAgent_ClearBypassIpset_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // WGAgentServer is the server API for WGAgent service.
 // All implementations must embed UnimplementedWGAgentServer
 // for forward compatibility.
@@ -244,6 +281,10 @@ type WGAgentServer interface {
 	GetBackup(*GetBackupRequest, grpc.ServerStreamingServer[BackupChunk]) error
 	RestoreBackup(context.Context, *RestoreBackupRequest) (*RestoreBackupResponse, error)
 	DeleteBackup(context.Context, *DeleteBackupRequest) (*DeleteBackupResponse, error)
+	// dnsmasq bypass.conf operations (only available if AGENT_DNSMASQ_BYPASS_CONF is set).
+	GetBypassConfig(context.Context, *GetBypassConfigRequest) (*GetBypassConfigResponse, error)
+	UpdateBypassConfig(context.Context, *UpdateBypassConfigRequest) (*UpdateBypassConfigResponse, error)
+	ClearBypassIpset(context.Context, *ClearBypassIpsetRequest) (*ClearBypassIpsetResponse, error)
 	mustEmbedUnimplementedWGAgentServer()
 }
 
@@ -295,6 +336,15 @@ func (UnimplementedWGAgentServer) RestoreBackup(context.Context, *RestoreBackupR
 }
 func (UnimplementedWGAgentServer) DeleteBackup(context.Context, *DeleteBackupRequest) (*DeleteBackupResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method DeleteBackup not implemented")
+}
+func (UnimplementedWGAgentServer) GetBypassConfig(context.Context, *GetBypassConfigRequest) (*GetBypassConfigResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method GetBypassConfig not implemented")
+}
+func (UnimplementedWGAgentServer) UpdateBypassConfig(context.Context, *UpdateBypassConfigRequest) (*UpdateBypassConfigResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method UpdateBypassConfig not implemented")
+}
+func (UnimplementedWGAgentServer) ClearBypassIpset(context.Context, *ClearBypassIpsetRequest) (*ClearBypassIpsetResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method ClearBypassIpset not implemented")
 }
 func (UnimplementedWGAgentServer) mustEmbedUnimplementedWGAgentServer() {}
 func (UnimplementedWGAgentServer) testEmbeddedByValue()                 {}
@@ -562,6 +612,60 @@ func _WGAgent_DeleteBackup_Handler(srv interface{}, ctx context.Context, dec fun
 	return interceptor(ctx, in, info, handler)
 }
 
+func _WGAgent_GetBypassConfig_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetBypassConfigRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(WGAgentServer).GetBypassConfig(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: WGAgent_GetBypassConfig_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(WGAgentServer).GetBypassConfig(ctx, req.(*GetBypassConfigRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _WGAgent_UpdateBypassConfig_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(UpdateBypassConfigRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(WGAgentServer).UpdateBypassConfig(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: WGAgent_UpdateBypassConfig_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(WGAgentServer).UpdateBypassConfig(ctx, req.(*UpdateBypassConfigRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _WGAgent_ClearBypassIpset_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ClearBypassIpsetRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(WGAgentServer).ClearBypassIpset(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: WGAgent_ClearBypassIpset_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(WGAgentServer).ClearBypassIpset(ctx, req.(*ClearBypassIpsetRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // WGAgent_ServiceDesc is the grpc.ServiceDesc for WGAgent service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -620,6 +724,18 @@ var WGAgent_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "DeleteBackup",
 			Handler:    _WGAgent_DeleteBackup_Handler,
+		},
+		{
+			MethodName: "GetBypassConfig",
+			Handler:    _WGAgent_GetBypassConfig_Handler,
+		},
+		{
+			MethodName: "UpdateBypassConfig",
+			Handler:    _WGAgent_UpdateBypassConfig_Handler,
+		},
+		{
+			MethodName: "ClearBypassIpset",
+			Handler:    _WGAgent_ClearBypassIpset_Handler,
 		},
 	},
 	Streams: []grpc.StreamDesc{

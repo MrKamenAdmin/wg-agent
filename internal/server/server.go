@@ -1,11 +1,13 @@
 package server
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"io"
 	"log"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"sort"
 	"strings"
@@ -57,6 +59,7 @@ func (s *WGAgentServer) Health(ctx context.Context, req *pb.HealthRequest) (*pb.
 		Hostname:            s.hostname,
 		UptimeSeconds:       int64(time.Since(s.startTime).Seconds()),
 		AvailableInterfaces: interfaces,
+		BypassConfEnabled:   s.config.BypassConfEnabled(),
 	}, nil
 }
 
@@ -563,6 +566,196 @@ func (s *WGAgentServer) cleanupOldBackups(iface string) {
 			os.Remove(filepath.Join(s.config.BackupDir, entry.Name()))
 		}
 	}
+}
+
+// GetBypassConfig returns current content of the dnsmasq bypass.conf file,
+// or an empty response with enabled=false if the feature is not configured.
+func (s *WGAgentServer) GetBypassConfig(ctx context.Context, req *pb.GetBypassConfigRequest) (*pb.GetBypassConfigResponse, error) {
+	path := s.config.DNSMasqBypassConfPath
+	resp := &pb.GetBypassConfigResponse{
+		Path:      path,
+		IpsetName: s.config.DNSMasqIPSetName,
+	}
+	if path == "" {
+		return resp, nil
+	}
+	info, err := os.Stat(path)
+	if err != nil || info.IsDir() {
+		return resp, nil
+	}
+	content, err := os.ReadFile(path)
+	if err != nil {
+		return resp, nil
+	}
+	resp.Enabled = true
+	resp.Content = content
+	resp.ModifiedAtUnix = info.ModTime().Unix()
+	return resp, nil
+}
+
+// UpdateBypassConfig atomically writes the new content to bypass.conf and
+// restarts dnsmasq. Returns success=false if the feature is not enabled.
+func (s *WGAgentServer) UpdateBypassConfig(ctx context.Context, req *pb.UpdateBypassConfigRequest) (*pb.UpdateBypassConfigResponse, error) {
+	if !s.config.BypassConfEnabled() {
+		return &pb.UpdateBypassConfigResponse{
+			Success: false,
+			Error:   "bypass conf is not enabled on this agent",
+		}, nil
+	}
+
+	path := s.config.DNSMasqBypassConfPath
+
+	if req.CreateBackup {
+		if err := s.backupBypassConf(path); err != nil {
+			log.Printf("warning: failed to backup bypass.conf: %v", err)
+		}
+	}
+
+	if err := writeFileAtomic(path, req.Content, 0644); err != nil {
+		return &pb.UpdateBypassConfigResponse{
+			Success: false,
+			Error:   fmt.Sprintf("failed to write bypass.conf: %v", err),
+		}, nil
+	}
+
+	out, err := s.runHostCommand("systemctl", "restart", "dnsmasq")
+	if err != nil {
+		return &pb.UpdateBypassConfigResponse{
+			Success:       false,
+			Error:         fmt.Sprintf("systemctl restart dnsmasq failed: %v", err),
+			RestartOutput: out,
+		}, nil
+	}
+
+	return &pb.UpdateBypassConfigResponse{
+		Success:       true,
+		RestartOutput: out,
+	}, nil
+}
+
+// ClearBypassIpset runs `ipset flush <name>` and restarts dnsmasq.
+func (s *WGAgentServer) ClearBypassIpset(ctx context.Context, req *pb.ClearBypassIpsetRequest) (*pb.ClearBypassIpsetResponse, error) {
+	if !s.config.BypassConfEnabled() {
+		return &pb.ClearBypassIpsetResponse{
+			Success: false,
+			Error:   "bypass conf is not enabled on this agent",
+		}, nil
+	}
+
+	name := s.config.DNSMasqIPSetName
+	if name == "" {
+		return &pb.ClearBypassIpsetResponse{
+			Success: false,
+			Error:   "ipset name is not configured",
+		}, nil
+	}
+
+	flushOut, err := s.runHostCommand("ipset", "flush", name)
+	if err != nil {
+		return &pb.ClearBypassIpsetResponse{
+			Success:     false,
+			Error:       fmt.Sprintf("ipset flush failed: %v", err),
+			FlushOutput: flushOut,
+		}, nil
+	}
+
+	restartOut, err := s.runHostCommand("systemctl", "restart", "dnsmasq")
+	if err != nil {
+		return &pb.ClearBypassIpsetResponse{
+			Success:       false,
+			Error:         fmt.Sprintf("systemctl restart dnsmasq failed: %v", err),
+			FlushOutput:   flushOut,
+			RestartOutput: restartOut,
+		}, nil
+	}
+
+	return &pb.ClearBypassIpsetResponse{
+		Success:       true,
+		FlushOutput:   flushOut,
+		RestartOutput: restartOut,
+	}, nil
+}
+
+func (s *WGAgentServer) backupBypassConf(path string) error {
+	content, err := os.ReadFile(path)
+	if err != nil {
+		return err
+	}
+	name := fmt.Sprintf("bypass_%s.conf", time.Now().Format("2006-01-02_15-04-05"))
+	backupPath := filepath.Join(s.config.BackupDir, name)
+	return os.WriteFile(backupPath, content, 0600)
+}
+
+func writeFileAtomic(path string, content []byte, mode os.FileMode) error {
+	tmp, err := os.CreateTemp(filepath.Dir(path), filepath.Base(path)+".tmp.*")
+	if err != nil {
+		return fmt.Errorf("create temp: %w", err)
+	}
+	tmpPath := tmp.Name()
+	cleanup := true
+	defer func() {
+		if cleanup {
+			os.Remove(tmpPath)
+		}
+	}()
+
+	if _, err := tmp.Write(content); err != nil {
+		tmp.Close()
+		return fmt.Errorf("write temp: %w", err)
+	}
+	if err := tmp.Chmod(mode); err != nil {
+		tmp.Close()
+		return fmt.Errorf("chmod temp: %w", err)
+	}
+	if err := tmp.Sync(); err != nil {
+		tmp.Close()
+		return fmt.Errorf("sync temp: %w", err)
+	}
+	if err := tmp.Close(); err != nil {
+		return fmt.Errorf("close temp: %w", err)
+	}
+	if err := os.Rename(tmpPath, path); err != nil {
+		return fmt.Errorf("rename: %w", err)
+	}
+	cleanup = false
+	return nil
+}
+
+// runHostCommand runs `name args...` targeting the host.
+//
+// Resolution order:
+//  1. If AGENT_DNSMASQ_CMD_PREFIX is set, prepend it verbatim.
+//  2. Otherwise, if `name` is available in PATH, run it directly.
+//  3. Otherwise, if `nsenter` is available, fall back to
+//     `nsenter -t 1 -a -- <name> <args>` (requires pid:host for containers).
+//
+// This way the feature works out of the box both on bare-metal hosts and in
+// docker with pid:host + util-linux in the image.
+func (s *WGAgentServer) runHostCommand(name string, args ...string) (string, error) {
+	var full []string
+	switch {
+	case len(s.config.DNSMasqCmdPrefix) > 0:
+		full = append(full, s.config.DNSMasqCmdPrefix...)
+		full = append(full, name)
+		full = append(full, args...)
+	default:
+		if _, err := exec.LookPath(name); err == nil {
+			full = append(full, name)
+			full = append(full, args...)
+		} else if _, nserr := exec.LookPath("nsenter"); nserr == nil {
+			full = append(full, "nsenter", "-t", "1", "-a", "--", name)
+			full = append(full, args...)
+		} else {
+			return "", fmt.Errorf("%s not found in PATH and nsenter is unavailable; set AGENT_DNSMASQ_CMD_PREFIX", name)
+		}
+	}
+
+	var buf bytes.Buffer
+	cmd := exec.Command(full[0], full[1:]...)
+	cmd.Stdout = &buf
+	cmd.Stderr = &buf
+	err := cmd.Run()
+	return buf.String(), err
 }
 
 func (s *WGAgentServer) getAvailableInterfaces() ([]string, error) {

@@ -22,6 +22,15 @@ type Config struct {
 	BackupDir           string
 	AllowedInterfaces   []string
 	BackupRetentionDays int
+
+	// dnsmasq bypass.conf integration.
+	// Empty DNSMasqBypassConfPath disables the feature on this agent.
+	DNSMasqBypassConfPath string
+	DNSMasqIPSetName      string
+	// DNSMasqCmdPrefix is prepended to `systemctl` / `ipset` invocations.
+	// Used to run them in the host namespaces from a container, e.g.
+	// "nsenter -t 1 -a --".
+	DNSMasqCmdPrefix []string
 }
 
 // Load loads configuration from environment variables
@@ -35,6 +44,10 @@ func Load() (*Config, error) {
 		BackupDir:           getEnv("AGENT_BACKUP_DIR", "/var/lib/wg-agent/backups"),
 		AllowedInterfaces:   getEnvList("AGENT_ALLOWED_INTERFACES", []string{}),
 		BackupRetentionDays: getEnvInt("AGENT_BACKUP_RETENTION_DAYS", 7),
+
+		DNSMasqBypassConfPath: getEnv("AGENT_DNSMASQ_BYPASS_CONF", ""),
+		DNSMasqIPSetName:      getEnv("AGENT_DNSMASQ_IPSET_NAME", "bypass_vpn"),
+		DNSMasqCmdPrefix:      strings.Fields(getEnv("AGENT_DNSMASQ_CMD_PREFIX", "")),
 	}
 
 	// Validate TLS configuration
@@ -85,6 +98,19 @@ func (c *Config) IsInterfaceAllowed(iface string) bool {
 // GetConfigPath returns the full path to a WireGuard config file
 func (c *Config) GetConfigPath(iface string) string {
 	return fmt.Sprintf("%s/%s.conf", c.WGConfigDir, iface)
+}
+
+// BypassConfEnabled reports whether the dnsmasq bypass feature is usable on this
+// agent: path is configured and the file actually exists.
+func (c *Config) BypassConfEnabled() bool {
+	if c.DNSMasqBypassConfPath == "" {
+		return false
+	}
+	info, err := os.Stat(c.DNSMasqBypassConfPath)
+	if err != nil || info.IsDir() {
+		return false
+	}
+	return true
 }
 
 func getEnv(key, defaultValue string) string {
