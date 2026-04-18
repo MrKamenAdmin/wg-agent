@@ -4,10 +4,11 @@ WireGuard Agent for remote WireGuard server management via gRPC with mTLS.
 
 ## Quick Start
 
-1. Copy certificates from the orchestrator:
+1. Copy certificates from the orchestrator to `/etc/wg-agent/` on the host:
 ```bash
-mkdir -p certs
-# Copy ca.crt, server.crt, server.key from orchestrator
+sudo mkdir -p /etc/wg-agent
+# Copy ca.crt, server.crt, server.key from orchestrator into /etc/wg-agent/
+sudo chmod 600 /etc/wg-agent/server.key
 ```
 
 2. Create `.env` file:
@@ -31,7 +32,7 @@ docker run -d \
   --privileged \
   --network host \
   -v /etc/wireguard:/etc/wireguard \
-  -v $(pwd)/certs:/etc/wg-agent:ro \
+  -v /etc/wg-agent:/etc/wg-agent:ro \
   -v wg-agent-backups:/var/lib/wg-agent/backups \
   --env-file .env \
   wg-agent
@@ -58,12 +59,11 @@ docker run -d \
 
 ## Certificate Setup
 
-The agent requires mTLS certificates. Generate them on the orchestrator and copy to the agent:
+The agent requires mTLS certificates. Generate them on the orchestrator (Servers → Download certs in the UI, or `GET /api/servers/{id}/certs`) and place them in `/etc/wg-agent/` on the host:
 
 ```
-certs/
+/etc/wg-agent/
 ├── ca.crt        # CA certificate (same as orchestrator)
 ├── server.crt    # Agent server certificate
-└── server.key    # Agent server private key
+└── server.key    # Agent server private key (chmod 600)
 ```
- 
