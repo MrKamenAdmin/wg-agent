@@ -28,6 +28,11 @@ service WGAgent {
   rpc GetBackup(GetBackupRequest) returns (stream BackupChunk);
   rpc RestoreBackup(RestoreBackupRequest) returns (RestoreBackupResponse);
   rpc DeleteBackup(DeleteBackupRequest) returns (DeleteBackupResponse);
+
+  // dnsmasq bypass.conf operations (only available if AGENT_DNSMASQ_BYPASS_CONF is set).
+  rpc GetBypassConfig(GetBypassConfigRequest) returns (GetBypassConfigResponse);
+  rpc UpdateBypassConfig(UpdateBypassConfigRequest) returns (UpdateBypassConfigResponse);
+  rpc ClearBypassIpset(ClearBypassIpsetRequest) returns (ClearBypassIpsetResponse);
 }
 
 // Health messages
@@ -38,6 +43,7 @@ message HealthResponse {
   string hostname = 2;
   int64 uptime_seconds = 3;
   repeated string available_interfaces = 4;
+  bool bypass_conf_enabled = 5;
 }
 
 // Show messages - equivalent to `wg show <interface> dump`
@@ -190,4 +196,36 @@ message DeleteBackupRequest {
 message DeleteBackupResponse {
   bool success = 1;
   string error = 2;
+}
+
+// dnsmasq bypass.conf messages.
+
+message GetBypassConfigRequest {}
+
+message GetBypassConfigResponse {
+  bool enabled = 1;             // true if path is configured and file exists
+  string path = 2;
+  bytes content = 3;
+  int64 modified_at_unix = 4;
+  string ipset_name = 5;
+}
+
+message UpdateBypassConfigRequest {
+  bytes content = 1;
+  bool create_backup = 2;
+}
+
+message UpdateBypassConfigResponse {
+  bool success = 1;
+  string error = 2;
+  string restart_output = 3;  // combined stdout/stderr of systemctl restart dnsmasq
+}
+
+message ClearBypassIpsetRequest {}
+
+message ClearBypassIpsetResponse {
+  bool success = 1;
+  string error = 2;
+  string flush_output = 3;    // output of `ipset flush <name>`
+  string restart_output = 4;  // output of `systemctl restart dnsmasq`
 }

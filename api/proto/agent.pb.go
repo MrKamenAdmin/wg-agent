@@ -4,7 +4,7 @@
 // 	protoc        v6.33.2
 // source: api/proto/agent.proto
 
-package wgagent
+package proto
 
 import (
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
@@ -64,6 +64,7 @@ type HealthResponse struct {
 	Hostname            string                 `protobuf:"bytes,2,opt,name=hostname,proto3" json:"hostname,omitempty"`
 	UptimeSeconds       int64                  `protobuf:"varint,3,opt,name=uptime_seconds,json=uptimeSeconds,proto3" json:"uptime_seconds,omitempty"`
 	AvailableInterfaces []string               `protobuf:"bytes,4,rep,name=available_interfaces,json=availableInterfaces,proto3" json:"available_interfaces,omitempty"`
+	BypassConfEnabled   bool                   `protobuf:"varint,5,opt,name=bypass_conf_enabled,json=bypassConfEnabled,proto3" json:"bypass_conf_enabled,omitempty"`
 	unknownFields       protoimpl.UnknownFields
 	sizeCache           protoimpl.SizeCache
 }
@@ -124,6 +125,13 @@ func (x *HealthResponse) GetAvailableInterfaces() []string {
 		return x.AvailableInterfaces
 	}
 	return nil
+}
+
+func (x *HealthResponse) GetBypassConfEnabled() bool {
+	if x != nil {
+		return x.BypassConfEnabled
+	}
+	return false
 }
 
 // Show messages - equivalent to `wg show <interface> dump`
@@ -1631,17 +1639,346 @@ func (x *DeleteBackupResponse) GetError() string {
 	return ""
 }
 
+type GetBypassConfigRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GetBypassConfigRequest) Reset() {
+	*x = GetBypassConfigRequest{}
+	mi := &file_api_proto_agent_proto_msgTypes[30]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetBypassConfigRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetBypassConfigRequest) ProtoMessage() {}
+
+func (x *GetBypassConfigRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_api_proto_agent_proto_msgTypes[30]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetBypassConfigRequest.ProtoReflect.Descriptor instead.
+func (*GetBypassConfigRequest) Descriptor() ([]byte, []int) {
+	return file_api_proto_agent_proto_rawDescGZIP(), []int{30}
+}
+
+type GetBypassConfigResponse struct {
+	state          protoimpl.MessageState `protogen:"open.v1"`
+	Enabled        bool                   `protobuf:"varint,1,opt,name=enabled,proto3" json:"enabled,omitempty"` // true if path is configured and file exists
+	Path           string                 `protobuf:"bytes,2,opt,name=path,proto3" json:"path,omitempty"`
+	Content        []byte                 `protobuf:"bytes,3,opt,name=content,proto3" json:"content,omitempty"`
+	ModifiedAtUnix int64                  `protobuf:"varint,4,opt,name=modified_at_unix,json=modifiedAtUnix,proto3" json:"modified_at_unix,omitempty"`
+	IpsetName      string                 `protobuf:"bytes,5,opt,name=ipset_name,json=ipsetName,proto3" json:"ipset_name,omitempty"`
+	unknownFields  protoimpl.UnknownFields
+	sizeCache      protoimpl.SizeCache
+}
+
+func (x *GetBypassConfigResponse) Reset() {
+	*x = GetBypassConfigResponse{}
+	mi := &file_api_proto_agent_proto_msgTypes[31]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetBypassConfigResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetBypassConfigResponse) ProtoMessage() {}
+
+func (x *GetBypassConfigResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_api_proto_agent_proto_msgTypes[31]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetBypassConfigResponse.ProtoReflect.Descriptor instead.
+func (*GetBypassConfigResponse) Descriptor() ([]byte, []int) {
+	return file_api_proto_agent_proto_rawDescGZIP(), []int{31}
+}
+
+func (x *GetBypassConfigResponse) GetEnabled() bool {
+	if x != nil {
+		return x.Enabled
+	}
+	return false
+}
+
+func (x *GetBypassConfigResponse) GetPath() string {
+	if x != nil {
+		return x.Path
+	}
+	return ""
+}
+
+func (x *GetBypassConfigResponse) GetContent() []byte {
+	if x != nil {
+		return x.Content
+	}
+	return nil
+}
+
+func (x *GetBypassConfigResponse) GetModifiedAtUnix() int64 {
+	if x != nil {
+		return x.ModifiedAtUnix
+	}
+	return 0
+}
+
+func (x *GetBypassConfigResponse) GetIpsetName() string {
+	if x != nil {
+		return x.IpsetName
+	}
+	return ""
+}
+
+type UpdateBypassConfigRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Content       []byte                 `protobuf:"bytes,1,opt,name=content,proto3" json:"content,omitempty"`
+	CreateBackup  bool                   `protobuf:"varint,2,opt,name=create_backup,json=createBackup,proto3" json:"create_backup,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *UpdateBypassConfigRequest) Reset() {
+	*x = UpdateBypassConfigRequest{}
+	mi := &file_api_proto_agent_proto_msgTypes[32]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *UpdateBypassConfigRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*UpdateBypassConfigRequest) ProtoMessage() {}
+
+func (x *UpdateBypassConfigRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_api_proto_agent_proto_msgTypes[32]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use UpdateBypassConfigRequest.ProtoReflect.Descriptor instead.
+func (*UpdateBypassConfigRequest) Descriptor() ([]byte, []int) {
+	return file_api_proto_agent_proto_rawDescGZIP(), []int{32}
+}
+
+func (x *UpdateBypassConfigRequest) GetContent() []byte {
+	if x != nil {
+		return x.Content
+	}
+	return nil
+}
+
+func (x *UpdateBypassConfigRequest) GetCreateBackup() bool {
+	if x != nil {
+		return x.CreateBackup
+	}
+	return false
+}
+
+type UpdateBypassConfigResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Success       bool                   `protobuf:"varint,1,opt,name=success,proto3" json:"success,omitempty"`
+	Error         string                 `protobuf:"bytes,2,opt,name=error,proto3" json:"error,omitempty"`
+	RestartOutput string                 `protobuf:"bytes,3,opt,name=restart_output,json=restartOutput,proto3" json:"restart_output,omitempty"` // combined stdout/stderr of systemctl restart dnsmasq
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *UpdateBypassConfigResponse) Reset() {
+	*x = UpdateBypassConfigResponse{}
+	mi := &file_api_proto_agent_proto_msgTypes[33]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *UpdateBypassConfigResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*UpdateBypassConfigResponse) ProtoMessage() {}
+
+func (x *UpdateBypassConfigResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_api_proto_agent_proto_msgTypes[33]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use UpdateBypassConfigResponse.ProtoReflect.Descriptor instead.
+func (*UpdateBypassConfigResponse) Descriptor() ([]byte, []int) {
+	return file_api_proto_agent_proto_rawDescGZIP(), []int{33}
+}
+
+func (x *UpdateBypassConfigResponse) GetSuccess() bool {
+	if x != nil {
+		return x.Success
+	}
+	return false
+}
+
+func (x *UpdateBypassConfigResponse) GetError() string {
+	if x != nil {
+		return x.Error
+	}
+	return ""
+}
+
+func (x *UpdateBypassConfigResponse) GetRestartOutput() string {
+	if x != nil {
+		return x.RestartOutput
+	}
+	return ""
+}
+
+type ClearBypassIpsetRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ClearBypassIpsetRequest) Reset() {
+	*x = ClearBypassIpsetRequest{}
+	mi := &file_api_proto_agent_proto_msgTypes[34]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ClearBypassIpsetRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ClearBypassIpsetRequest) ProtoMessage() {}
+
+func (x *ClearBypassIpsetRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_api_proto_agent_proto_msgTypes[34]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ClearBypassIpsetRequest.ProtoReflect.Descriptor instead.
+func (*ClearBypassIpsetRequest) Descriptor() ([]byte, []int) {
+	return file_api_proto_agent_proto_rawDescGZIP(), []int{34}
+}
+
+type ClearBypassIpsetResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Success       bool                   `protobuf:"varint,1,opt,name=success,proto3" json:"success,omitempty"`
+	Error         string                 `protobuf:"bytes,2,opt,name=error,proto3" json:"error,omitempty"`
+	FlushOutput   string                 `protobuf:"bytes,3,opt,name=flush_output,json=flushOutput,proto3" json:"flush_output,omitempty"`       // output of `ipset flush <name>`
+	RestartOutput string                 `protobuf:"bytes,4,opt,name=restart_output,json=restartOutput,proto3" json:"restart_output,omitempty"` // output of `systemctl restart dnsmasq`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ClearBypassIpsetResponse) Reset() {
+	*x = ClearBypassIpsetResponse{}
+	mi := &file_api_proto_agent_proto_msgTypes[35]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ClearBypassIpsetResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ClearBypassIpsetResponse) ProtoMessage() {}
+
+func (x *ClearBypassIpsetResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_api_proto_agent_proto_msgTypes[35]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ClearBypassIpsetResponse.ProtoReflect.Descriptor instead.
+func (*ClearBypassIpsetResponse) Descriptor() ([]byte, []int) {
+	return file_api_proto_agent_proto_rawDescGZIP(), []int{35}
+}
+
+func (x *ClearBypassIpsetResponse) GetSuccess() bool {
+	if x != nil {
+		return x.Success
+	}
+	return false
+}
+
+func (x *ClearBypassIpsetResponse) GetError() string {
+	if x != nil {
+		return x.Error
+	}
+	return ""
+}
+
+func (x *ClearBypassIpsetResponse) GetFlushOutput() string {
+	if x != nil {
+		return x.FlushOutput
+	}
+	return ""
+}
+
+func (x *ClearBypassIpsetResponse) GetRestartOutput() string {
+	if x != nil {
+		return x.RestartOutput
+	}
+	return ""
+}
+
 var File_api_proto_agent_proto protoreflect.FileDescriptor
 
 const file_api_proto_agent_proto_rawDesc = "" +
 	"\n" +
 	"\x15api/proto/agent.proto\x12\awgagent\"\x0f\n" +
-	"\rHealthRequest\"\xa0\x01\n" +
+	"\rHealthRequest\"\xd0\x01\n" +
 	"\x0eHealthResponse\x12\x18\n" +
 	"\aversion\x18\x01 \x01(\tR\aversion\x12\x1a\n" +
 	"\bhostname\x18\x02 \x01(\tR\bhostname\x12%\n" +
 	"\x0euptime_seconds\x18\x03 \x01(\x03R\ruptimeSeconds\x121\n" +
-	"\x14available_interfaces\x18\x04 \x03(\tR\x13availableInterfaces\"4\n" +
+	"\x14available_interfaces\x18\x04 \x03(\tR\x13availableInterfaces\x12.\n" +
+	"\x13bypass_conf_enabled\x18\x05 \x01(\bR\x11bypassConfEnabled\"4\n" +
 	"\vShowRequest\x12%\n" +
 	"\x0einterface_name\x18\x01 \x01(\tR\rinterfaceName\"\x91\x01\n" +
 	"\fShowResponse\x12\x1d\n" +
@@ -1748,7 +2085,28 @@ const file_api_proto_agent_proto_rawDesc = "" +
 	"\x04name\x18\x01 \x01(\tR\x04name\"F\n" +
 	"\x14DeleteBackupResponse\x12\x18\n" +
 	"\asuccess\x18\x01 \x01(\bR\asuccess\x12\x14\n" +
-	"\x05error\x18\x02 \x01(\tR\x05error2\xc6\a\n" +
+	"\x05error\x18\x02 \x01(\tR\x05error\"\x18\n" +
+	"\x16GetBypassConfigRequest\"\xaa\x01\n" +
+	"\x17GetBypassConfigResponse\x12\x18\n" +
+	"\aenabled\x18\x01 \x01(\bR\aenabled\x12\x12\n" +
+	"\x04path\x18\x02 \x01(\tR\x04path\x12\x18\n" +
+	"\acontent\x18\x03 \x01(\fR\acontent\x12(\n" +
+	"\x10modified_at_unix\x18\x04 \x01(\x03R\x0emodifiedAtUnix\x12\x1d\n" +
+	"\n" +
+	"ipset_name\x18\x05 \x01(\tR\tipsetName\"Z\n" +
+	"\x19UpdateBypassConfigRequest\x12\x18\n" +
+	"\acontent\x18\x01 \x01(\fR\acontent\x12#\n" +
+	"\rcreate_backup\x18\x02 \x01(\bR\fcreateBackup\"s\n" +
+	"\x1aUpdateBypassConfigResponse\x12\x18\n" +
+	"\asuccess\x18\x01 \x01(\bR\asuccess\x12\x14\n" +
+	"\x05error\x18\x02 \x01(\tR\x05error\x12%\n" +
+	"\x0erestart_output\x18\x03 \x01(\tR\rrestartOutput\"\x19\n" +
+	"\x17ClearBypassIpsetRequest\"\x94\x01\n" +
+	"\x18ClearBypassIpsetResponse\x12\x18\n" +
+	"\asuccess\x18\x01 \x01(\bR\asuccess\x12\x14\n" +
+	"\x05error\x18\x02 \x01(\tR\x05error\x12!\n" +
+	"\fflush_output\x18\x03 \x01(\tR\vflushOutput\x12%\n" +
+	"\x0erestart_output\x18\x04 \x01(\tR\rrestartOutput2\xd4\t\n" +
 	"\aWGAgent\x129\n" +
 	"\x06Health\x12\x16.wgagent.HealthRequest\x1a\x17.wgagent.HealthResponse\x123\n" +
 	"\x04Show\x12\x14.wgagent.ShowRequest\x1a\x15.wgagent.ShowResponse\x12?\n" +
@@ -1766,7 +2124,10 @@ const file_api_proto_agent_proto_rawDesc = "" +
 	"\fCreateBackup\x12\x1c.wgagent.CreateBackupRequest\x1a\x1d.wgagent.CreateBackupResponse\x12>\n" +
 	"\tGetBackup\x12\x19.wgagent.GetBackupRequest\x1a\x14.wgagent.BackupChunk0\x01\x12N\n" +
 	"\rRestoreBackup\x12\x1d.wgagent.RestoreBackupRequest\x1a\x1e.wgagent.RestoreBackupResponse\x12K\n" +
-	"\fDeleteBackup\x12\x1c.wgagent.DeleteBackupRequest\x1a\x1d.wgagent.DeleteBackupResponseB#Z!wg-orchestrator/api/proto/wgagentb\x06proto3"
+	"\fDeleteBackup\x12\x1c.wgagent.DeleteBackupRequest\x1a\x1d.wgagent.DeleteBackupResponse\x12T\n" +
+	"\x0fGetBypassConfig\x12\x1f.wgagent.GetBypassConfigRequest\x1a .wgagent.GetBypassConfigResponse\x12]\n" +
+	"\x12UpdateBypassConfig\x12\".wgagent.UpdateBypassConfigRequest\x1a#.wgagent.UpdateBypassConfigResponse\x12W\n" +
+	"\x10ClearBypassIpset\x12 .wgagent.ClearBypassIpsetRequest\x1a!.wgagent.ClearBypassIpsetResponseB\x14Z\x12wg-agent/api/protob\x06proto3"
 
 var (
 	file_api_proto_agent_proto_rawDescOnce sync.Once
@@ -1780,38 +2141,44 @@ func file_api_proto_agent_proto_rawDescGZIP() []byte {
 	return file_api_proto_agent_proto_rawDescData
 }
 
-var file_api_proto_agent_proto_msgTypes = make([]protoimpl.MessageInfo, 30)
+var file_api_proto_agent_proto_msgTypes = make([]protoimpl.MessageInfo, 36)
 var file_api_proto_agent_proto_goTypes = []any{
-	(*HealthRequest)(nil),         // 0: wgagent.HealthRequest
-	(*HealthResponse)(nil),        // 1: wgagent.HealthResponse
-	(*ShowRequest)(nil),           // 2: wgagent.ShowRequest
-	(*ShowResponse)(nil),          // 3: wgagent.ShowResponse
-	(*PeerStatus)(nil),            // 4: wgagent.PeerStatus
-	(*SyncConfRequest)(nil),       // 5: wgagent.SyncConfRequest
-	(*SyncConfResponse)(nil),      // 6: wgagent.SyncConfResponse
-	(*SetPeerRequest)(nil),        // 7: wgagent.SetPeerRequest
-	(*SetPeerResponse)(nil),       // 8: wgagent.SetPeerResponse
-	(*RemovePeerRequest)(nil),     // 9: wgagent.RemovePeerRequest
-	(*RemovePeerResponse)(nil),    // 10: wgagent.RemovePeerResponse
-	(*GenPSKRequest)(nil),         // 11: wgagent.GenPSKRequest
-	(*GenPSKResponse)(nil),        // 12: wgagent.GenPSKResponse
-	(*GenKeyPairRequest)(nil),     // 13: wgagent.GenKeyPairRequest
-	(*GenKeyPairResponse)(nil),    // 14: wgagent.GenKeyPairResponse
-	(*ReadConfigRequest)(nil),     // 15: wgagent.ReadConfigRequest
-	(*ReadConfigResponse)(nil),    // 16: wgagent.ReadConfigResponse
-	(*WriteConfigRequest)(nil),    // 17: wgagent.WriteConfigRequest
-	(*WriteConfigResponse)(nil),   // 18: wgagent.WriteConfigResponse
-	(*ListBackupsRequest)(nil),    // 19: wgagent.ListBackupsRequest
-	(*BackupInfo)(nil),            // 20: wgagent.BackupInfo
-	(*ListBackupsResponse)(nil),   // 21: wgagent.ListBackupsResponse
-	(*CreateBackupRequest)(nil),   // 22: wgagent.CreateBackupRequest
-	(*CreateBackupResponse)(nil),  // 23: wgagent.CreateBackupResponse
-	(*GetBackupRequest)(nil),      // 24: wgagent.GetBackupRequest
-	(*BackupChunk)(nil),           // 25: wgagent.BackupChunk
-	(*RestoreBackupRequest)(nil),  // 26: wgagent.RestoreBackupRequest
-	(*RestoreBackupResponse)(nil), // 27: wgagent.RestoreBackupResponse
-	(*DeleteBackupRequest)(nil),   // 28: wgagent.DeleteBackupRequest
-	(*DeleteBackupResponse)(nil),  // 29: wgagent.DeleteBackupResponse
+	(*HealthRequest)(nil),              // 0: wgagent.HealthRequest
+	(*HealthResponse)(nil),             // 1: wgagent.HealthResponse
+	(*ShowRequest)(nil),                // 2: wgagent.ShowRequest
+	(*ShowResponse)(nil),               // 3: wgagent.ShowResponse
+	(*PeerStatus)(nil),                 // 4: wgagent.PeerStatus
+	(*SyncConfRequest)(nil),            // 5: wgagent.SyncConfRequest
+	(*SyncConfResponse)(nil),           // 6: wgagent.SyncConfResponse
+	(*SetPeerRequest)(nil),             // 7: wgagent.SetPeerRequest
+	(*SetPeerResponse)(nil),            // 8: wgagent.SetPeerResponse
+	(*RemovePeerRequest)(nil),          // 9: wgagent.RemovePeerRequest
+	(*RemovePeerResponse)(nil),         // 10: wgagent.RemovePeerResponse
+	(*GenPSKRequest)(nil),              // 11: wgagent.GenPSKRequest
+	(*GenPSKResponse)(nil),             // 12: wgagent.GenPSKResponse
+	(*GenKeyPairRequest)(nil),          // 13: wgagent.GenKeyPairRequest
+	(*GenKeyPairResponse)(nil),         // 14: wgagent.GenKeyPairResponse
+	(*ReadConfigRequest)(nil),          // 15: wgagent.ReadConfigRequest
+	(*ReadConfigResponse)(nil),         // 16: wgagent.ReadConfigResponse
+	(*WriteConfigRequest)(nil),         // 17: wgagent.WriteConfigRequest
+	(*WriteConfigResponse)(nil),        // 18: wgagent.WriteConfigResponse
+	(*ListBackupsRequest)(nil),         // 19: wgagent.ListBackupsRequest
+	(*BackupInfo)(nil),                 // 20: wgagent.BackupInfo
+	(*ListBackupsResponse)(nil),        // 21: wgagent.ListBackupsResponse
+	(*CreateBackupRequest)(nil),        // 22: wgagent.CreateBackupRequest
+	(*CreateBackupResponse)(nil),       // 23: wgagent.CreateBackupResponse
+	(*GetBackupRequest)(nil),           // 24: wgagent.GetBackupRequest
+	(*BackupChunk)(nil),                // 25: wgagent.BackupChunk
+	(*RestoreBackupRequest)(nil),       // 26: wgagent.RestoreBackupRequest
+	(*RestoreBackupResponse)(nil),      // 27: wgagent.RestoreBackupResponse
+	(*DeleteBackupRequest)(nil),        // 28: wgagent.DeleteBackupRequest
+	(*DeleteBackupResponse)(nil),       // 29: wgagent.DeleteBackupResponse
+	(*GetBypassConfigRequest)(nil),     // 30: wgagent.GetBypassConfigRequest
+	(*GetBypassConfigResponse)(nil),    // 31: wgagent.GetBypassConfigResponse
+	(*UpdateBypassConfigRequest)(nil),  // 32: wgagent.UpdateBypassConfigRequest
+	(*UpdateBypassConfigResponse)(nil), // 33: wgagent.UpdateBypassConfigResponse
+	(*ClearBypassIpsetRequest)(nil),    // 34: wgagent.ClearBypassIpsetRequest
+	(*ClearBypassIpsetResponse)(nil),   // 35: wgagent.ClearBypassIpsetResponse
 }
 var file_api_proto_agent_proto_depIdxs = []int32{
 	4,  // 0: wgagent.ShowResponse.peers:type_name -> wgagent.PeerStatus
@@ -1831,22 +2198,28 @@ var file_api_proto_agent_proto_depIdxs = []int32{
 	24, // 14: wgagent.WGAgent.GetBackup:input_type -> wgagent.GetBackupRequest
 	26, // 15: wgagent.WGAgent.RestoreBackup:input_type -> wgagent.RestoreBackupRequest
 	28, // 16: wgagent.WGAgent.DeleteBackup:input_type -> wgagent.DeleteBackupRequest
-	1,  // 17: wgagent.WGAgent.Health:output_type -> wgagent.HealthResponse
-	3,  // 18: wgagent.WGAgent.Show:output_type -> wgagent.ShowResponse
-	6,  // 19: wgagent.WGAgent.SyncConf:output_type -> wgagent.SyncConfResponse
-	8,  // 20: wgagent.WGAgent.SetPeer:output_type -> wgagent.SetPeerResponse
-	10, // 21: wgagent.WGAgent.RemovePeer:output_type -> wgagent.RemovePeerResponse
-	12, // 22: wgagent.WGAgent.GenPSK:output_type -> wgagent.GenPSKResponse
-	14, // 23: wgagent.WGAgent.GenKeyPair:output_type -> wgagent.GenKeyPairResponse
-	16, // 24: wgagent.WGAgent.ReadConfig:output_type -> wgagent.ReadConfigResponse
-	18, // 25: wgagent.WGAgent.WriteConfig:output_type -> wgagent.WriteConfigResponse
-	21, // 26: wgagent.WGAgent.ListBackups:output_type -> wgagent.ListBackupsResponse
-	23, // 27: wgagent.WGAgent.CreateBackup:output_type -> wgagent.CreateBackupResponse
-	25, // 28: wgagent.WGAgent.GetBackup:output_type -> wgagent.BackupChunk
-	27, // 29: wgagent.WGAgent.RestoreBackup:output_type -> wgagent.RestoreBackupResponse
-	29, // 30: wgagent.WGAgent.DeleteBackup:output_type -> wgagent.DeleteBackupResponse
-	17, // [17:31] is the sub-list for method output_type
-	3,  // [3:17] is the sub-list for method input_type
+	30, // 17: wgagent.WGAgent.GetBypassConfig:input_type -> wgagent.GetBypassConfigRequest
+	32, // 18: wgagent.WGAgent.UpdateBypassConfig:input_type -> wgagent.UpdateBypassConfigRequest
+	34, // 19: wgagent.WGAgent.ClearBypassIpset:input_type -> wgagent.ClearBypassIpsetRequest
+	1,  // 20: wgagent.WGAgent.Health:output_type -> wgagent.HealthResponse
+	3,  // 21: wgagent.WGAgent.Show:output_type -> wgagent.ShowResponse
+	6,  // 22: wgagent.WGAgent.SyncConf:output_type -> wgagent.SyncConfResponse
+	8,  // 23: wgagent.WGAgent.SetPeer:output_type -> wgagent.SetPeerResponse
+	10, // 24: wgagent.WGAgent.RemovePeer:output_type -> wgagent.RemovePeerResponse
+	12, // 25: wgagent.WGAgent.GenPSK:output_type -> wgagent.GenPSKResponse
+	14, // 26: wgagent.WGAgent.GenKeyPair:output_type -> wgagent.GenKeyPairResponse
+	16, // 27: wgagent.WGAgent.ReadConfig:output_type -> wgagent.ReadConfigResponse
+	18, // 28: wgagent.WGAgent.WriteConfig:output_type -> wgagent.WriteConfigResponse
+	21, // 29: wgagent.WGAgent.ListBackups:output_type -> wgagent.ListBackupsResponse
+	23, // 30: wgagent.WGAgent.CreateBackup:output_type -> wgagent.CreateBackupResponse
+	25, // 31: wgagent.WGAgent.GetBackup:output_type -> wgagent.BackupChunk
+	27, // 32: wgagent.WGAgent.RestoreBackup:output_type -> wgagent.RestoreBackupResponse
+	29, // 33: wgagent.WGAgent.DeleteBackup:output_type -> wgagent.DeleteBackupResponse
+	31, // 34: wgagent.WGAgent.GetBypassConfig:output_type -> wgagent.GetBypassConfigResponse
+	33, // 35: wgagent.WGAgent.UpdateBypassConfig:output_type -> wgagent.UpdateBypassConfigResponse
+	35, // 36: wgagent.WGAgent.ClearBypassIpset:output_type -> wgagent.ClearBypassIpsetResponse
+	20, // [20:37] is the sub-list for method output_type
+	3,  // [3:20] is the sub-list for method input_type
 	3,  // [3:3] is the sub-list for extension type_name
 	3,  // [3:3] is the sub-list for extension extendee
 	0,  // [0:3] is the sub-list for field type_name
@@ -1864,7 +2237,7 @@ func file_api_proto_agent_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_api_proto_agent_proto_rawDesc), len(file_api_proto_agent_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   30,
+			NumMessages:   36,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

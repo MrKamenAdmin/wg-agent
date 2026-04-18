@@ -9,6 +9,12 @@ services:
       - /etc/wireguard:/etc/wireguard
       - /etc/wg-agent:/etc/wg-agent:ro
       - wg-agent-backups:/var/lib/wg-agent/backups
+      # Optional: to enable the dnsmasq bypass.conf feature uncomment the mounts
+      # below and set AGENT_DNSMASQ_BYPASS_CONF in .env. The agent needs to be
+      # able to run `systemctl restart dnsmasq` and `ipset flush <name>` on the
+      # host — simplest route is running the agent directly on the host, not in
+      # a container. Inside a container this requires host D-Bus access.
+      # - /etc/dnsmasq.d:/etc/dnsmasq.d
     env_file:
       - .env
 
