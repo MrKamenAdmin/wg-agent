@@ -1,11 +1,11 @@
 # WG Agent
 
-Агент для подключения вашего WireGuard-сервера к панели **[panel.brehin.me](https://panel.brehin.me)**.
+Агент для подключения вашего WireGuard-сервера к панели **[panel.brekhin.me](https://panel.brekhin.me)**.
 
 Панель управляет клиентами (пирами): создаёт их, выдаёт `.conf` и QR-коды, отключает по таймеру, считает трафик и делает бэкапы. Агент — маленький gRPC-сервис на вашем сервере и единственное, что трогает WireGuard: панель сама к `wg` не обращается, только через агента.
 
 ```
- panel.brehin.me                          ваш сервер
+ panel.brekhin.me                         ваш сервер
 ┌────────────────┐   gRPC + mTLS :9090   ┌──────────────┐     ┌─────────────────────────┐
 │  панель (API,  │ ────────────────────▶ │   wg-agent   │ ──▶ │ wg / wg-quick           │
 │  БД пиров, UI) │                       │  (Docker)    │     │ /etc/wireguard/wg0.conf │
@@ -97,7 +97,7 @@ sudo wg show wg0          # должен показать interface: wg0 и list
 
 ## Шаг 2. Аккаунт в панели
 
-Регистрации в панели нет, аккаунт выдаёт администратор. Для добавления своих серверов нужна роль **moderator**. Напишите владельцу репозитория ([@MrKamenAdmin](https://github.com/MrKamenAdmin)) и войдите на [panel.brehin.me](https://panel.brehin.me) с полученными данными.
+Регистрации в панели нет, аккаунт выдаёт администратор. Для добавления своих серверов нужна роль **moderator**. Напишите владельцу репозитория ([@MrKamenAdmin](https://github.com/MrKamenAdmin)) и войдите на [panel.brekhin.me](https://panel.brekhin.me) с полученными данными.
 
 ## Шаг 3. Сервер в панели и сертификаты
 
@@ -169,12 +169,18 @@ sudo docker run -d \
   --restart unless-stopped \
   --privileged \
   --network host \
+  --pid host \
   -v /etc/wireguard:/etc/wireguard \
   -v /etc/wg-agent:/etc/wg-agent:ro \
+  -v /etc/dnsmasq.d:/etc/dnsmasq.d \
   -v wg-agent-backups:/var/lib/wg-agent/backups \
   --env-file .env \
   wg-agent
 ```
+
+`--pid host` и монтирование `/etc/dnsmasq.d` нужны только для bypass-списка: без них
+`nsenter` из `AGENT_DNSMASQ_CMD_PREFIX` не попадёт в пространство хоста, а `bypass.conf`
+агент не увидит. Если bypass не используете, обе строки можно убрать.
 
 </details>
 
@@ -219,6 +225,8 @@ AGENT_DNSMASQ_CMD_PREFIX=nsenter -t 1 -a --
 ```
 
 Файл `bypass.conf` должен уже существовать. `docker-compose.yml` монтирует `/etc/dnsmasq.d` и включает `pid: host`, поэтому `systemctl` и `ipset` выполняются в пространстве хоста через `nsenter`. Если переменные не заданы, функция выключена.
+
+> После каждой правки списка из панели агент делает `ipset flush` и перезапускает dnsmasq. Набор остаётся пустым, пока домены не зарезолвятся заново, и до этого их трафик идёт обычным маршрутом, а не через bypass.
 
 ## Переменные окружения
 
