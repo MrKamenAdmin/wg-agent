@@ -5,7 +5,7 @@ services:
     restart: unless-stopped
     privileged: true
     network_mode: host
-    # pid: host лets the agent run systemctl/ipset in the host's namespaces
+    # pid: host lets the agent run systemctl/ipset in the host's namespaces
     # via `nsenter -t 1 -a --` (set AGENT_DNSMASQ_CMD_PREFIX="nsenter -t 1 -a --").
     pid: host
     volumes:
