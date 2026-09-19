@@ -1,32 +1,170 @@
 # WG Agent
 
-WireGuard Agent for remote WireGuard server management via gRPC with mTLS.
+Агент для подключения вашего WireGuard-сервера к панели **[panel.brehin.me](https://panel.brehin.me)**.
 
-## Quick Start
+Панель управляет клиентами (пирами): создаёт их, выдаёт `.conf` и QR-коды, отключает по таймеру, считает трафик и делает бэкапы. Агент — маленький gRPC-сервис на вашем сервере и единственное, что трогает WireGuard: панель сама к `wg` не обращается, только через агента.
 
-1. Copy certificates from the orchestrator to `/etc/wg-agent/` on the host:
+```
+ panel.brehin.me                          ваш сервер
+┌────────────────┐   gRPC + mTLS :9090   ┌──────────────┐     ┌─────────────────────────┐
+│  панель (API,  │ ────────────────────▶ │   wg-agent   │ ──▶ │ wg / wg-quick           │
+│  БД пиров, UI) │                       │  (Docker)    │     │ /etc/wireguard/wg0.conf │
+└────────────────┘                       └──────────────┘     └─────────────────────────┘
+                                                                        ▲  UDP :51820
+                                                                  клиенты WireGuard
+```
+
+## Содержание
+
+- [Как это работает](#как-это-работает)
+- [Что вы доверяете панели](#что-вы-доверяете-панели)
+- [Требования](#требования)
+- [Шаг 1. WireGuard на сервере](#шаг-1-wireguard-на-сервере)
+- [Шаг 2. Аккаунт в панели](#шаг-2-аккаунт-в-панели)
+- [Шаг 3. Сервер в панели и сертификаты](#шаг-3-сервер-в-панели-и-сертификаты)
+- [Шаг 4. Установка агента](#шаг-4-установка-агента)
+- [Шаг 5. Файрвол](#шаг-5-файрвол)
+- [Шаг 6. Проверка и первые клиенты](#шаг-6-проверка-и-первые-клиенты)
+- [Несколько нод на один сервер](#несколько-нод-на-один-сервер)
+- [Bypass-список для dnsmasq (опционально)](#bypass-список-для-dnsmasq-опционально)
+- [Переменные окружения](#переменные-окружения)
+- [Обслуживание](#обслуживание)
+- [Устранение неполадок](#устранение-неполадок)
+
+## Как это работает
+
+- Агент слушает TCP-порт `9090` и принимает только клиента с сертификатом, подписанным CA панели (mTLS). Без этого сертификата к агенту не подключиться.
+- Список пиров хранится в панели. При каждом изменении панель перезаписывает секции `[Peer]` в `/etc/wireguard/wg0.conf` и применяет их через `wg syncconf`, так что уже подключённые клиенты не отваливаются.
+- Секция `[Interface]` (адрес, `PostUp`/`PostDown`, MTU) остаётся вашей: панель её читает, но при синхронизации не меняет.
+- Отключённый пир не удаляется из файла, а комментируется (`# DISABLED`), поэтому история сохраняется.
+- Перед каждой записью конфига агент кладёт бэкап в `/var/lib/wg-agent/backups`. Бэкапы старше `AGENT_BACKUP_RETENTION_DAYS` (по умолчанию 7 дней) удаляются автоматически.
+
+## Что вы доверяете панели
+
+Прочитайте это до установки. Подключая сервер, вы даёте владельцу панели:
+
+- **чтение и запись** `/etc/wireguard/<интерфейс>.conf`, в том числе **приватного ключа** интерфейса;
+- право решать, кто может подключаться к вашему VPN (создавать, отключать и удалять пиров);
+- перезапуск интерфейса через `wg-quick down/up` при восстановлении бэкапа. Команды из `PostUp`/`PostDown` выполняются от root, поэтому тот, кто управляет агентом, **фактически имеет root на хосте**;
+- при включённом bypass-списке: запись `bypass.conf`, `systemctl restart dnsmasq` и `ipset flush` на хосте.
+
+Контейнер работает с `privileged: true`, `network_mode: host` и `pid: host`, потому что иначе он не сможет управлять интерфейсом хоста. Подключайте только тот сервер, который готовы так доверить. Ограничить агента одним интерфейсом можно через `AGENT_ALLOWED_INTERFACES` (см. ниже).
+
+## Требования
+
+- Linux-сервер с публичным IPv4 (инструкция ниже написана для Debian/Ubuntu).
+- Docker и Docker Compose v2: `curl -fsSL https://get.docker.com | sh`.
+- Открытые порты: UDP `51820` для клиентов и TCP `9090` для панели.
+- Root или `sudo`.
+
+## Шаг 1. WireGuard на сервере
+
+> Если WireGuard уже работает и у него есть клиенты, переходите к шагу 2. На шаге 6 существующих клиентов можно импортировать в панель.
+
+Установите WireGuard и сгенерируйте ключи сервера:
+
 ```bash
+sudo apt update && sudo apt install -y wireguard
+sudo sh -c 'umask 077; wg genkey > /etc/wireguard/server.key; wg pubkey < /etc/wireguard/server.key > /etc/wireguard/server.pub'
+```
+
+Узнайте внешний сетевой интерфейс (обычно `eth0` или `ens3`):
+
+```bash
+ip route show default | awk '{print $5}'
+```
+
+Создайте `/etc/wireguard/wg0.conf`. Подставьте приватный ключ (`sudo cat /etc/wireguard/server.key`) и свой внешний интерфейс вместо `eth0`:
+
+```ini
+[Interface]
+Address = 10.8.0.1/24
+ListenPort = 51820
+PrivateKey = <приватный ключ сервера>
+PostUp = iptables -t nat -A POSTROUTING -s 10.8.0.0/24 -o eth0 -j MASQUERADE; iptables -A FORWARD -i %i -j ACCEPT; iptables -A FORWARD -o %i -j ACCEPT
+PostDown = iptables -t nat -D POSTROUTING -s 10.8.0.0/24 -o eth0 -j MASQUERADE; iptables -D FORWARD -i %i -j ACCEPT; iptables -D FORWARD -o %i -j ACCEPT
+```
+
+Включите маршрутизацию и поднимите интерфейс:
+
+```bash
+echo 'net.ipv4.ip_forward = 1' | sudo tee /etc/sysctl.d/99-wireguard.conf
+sudo sysctl --system
+sudo chmod 600 /etc/wireguard/wg0.conf
+sudo systemctl enable --now wg-quick@wg0
+sudo wg show wg0          # должен показать interface: wg0 и listening port: 51820
+```
+
+## Шаг 2. Аккаунт в панели
+
+Регистрации в панели нет, аккаунт выдаёт администратор. Для добавления своих серверов нужна роль **moderator**. Напишите владельцу репозитория ([@MrKamenAdmin](https://github.com/MrKamenAdmin)) и войдите на [panel.brehin.me](https://panel.brehin.me) с полученными данными.
+
+## Шаг 3. Сервер в панели и сертификаты
+
+В панели откройте **Администрирование → Серверы → «Добавить сервер WireGuard»** и заполните форму:
+
+| Поле | Что указать | Пример |
+|------|-------------|--------|
+| Название сервера | Любое имя, его видят только пользователи панели | `Frankfurt` |
+| Адрес агента | `<IP или домен сервера>:9090` — адрес, по которому панель достучится до агента | `203.0.113.10:9090` |
+| Публичный ключ | Вывод `sudo cat /etc/wireguard/server.pub` | `kJXi…NXc=` |
+| Эндпоинт | `<IP или домен>:51820`, попадает в конфиги клиентов | `vpn.example.com:51820` |
+| Имя интерфейса | Имя конфига без `.conf` | `wg0` |
+| IP пул CIDR | Подсеть из `Address` в `wg0.conf`, из неё клиентам выдаются адреса | `10.8.0.0/24` |
+| Исключить из IP пула | Адрес самого сервера и другие занятые адреса | `10.8.0.1` |
+| DNS для клиентов | DNS, который получат клиенты | `1.1.1.1` |
+| AllowedIPs для клиентов | `0.0.0.0/0` — весь трафик клиента через VPN; подсеть — только она | `0.0.0.0/0` |
+| IPv6 | Включайте, только если на сервере настроен IPv6 для `wg0` | — |
+
+> **Адрес агента важен.** Сертификат агента выпускается именно на этот IP или домен. Если позже поменяете адрес, скачайте сертификаты заново, иначе панель получит ошибку `x509: certificate is valid for …`.
+
+После сохранения панель предложит **«Скачать сертификаты и закрыть»**. Сохраните `agent-certs.zip`: в нём `ca.crt`, `server.crt` и `server.key`. Скачать архив позже можно иконкой «Скачать сертификаты агента» у ноды сервера.
+
+Скопируйте архив на сервер:
+
+```bash
+scp agent-certs.zip root@203.0.113.10:/root/
+```
+
+## Шаг 4. Установка агента
+
+На сервере разложите сертификаты:
+
+```bash
+sudo apt install -y unzip git
 sudo mkdir -p /etc/wg-agent
-# Copy ca.crt, server.crt, server.key from orchestrator into /etc/wg-agent/
+sudo unzip -o /root/agent-certs.zip -d /etc/wg-agent
 sudo chmod 600 /etc/wg-agent/server.key
 ```
 
-2. Create `.env` file:
+Скачайте агента и подготовьте `.env`:
+
 ```bash
+git clone https://github.com/MrKamenAdmin/wg-agent.git
+cd wg-agent
 cp .env.example .env
+sed -i 's/^AGENT_ALLOWED_INTERFACES=.*/AGENT_ALLOWED_INTERFACES=wg0/' .env   # агент будет видеть только wg0
 ```
 
-3. Start with Docker Compose:
+Соберите и запустите:
+
 ```bash
-docker compose up -d
+sudo docker compose up -d --build
+sudo docker compose logs -f
 ```
 
-## Manual Docker Run
+В логах должна появиться строка:
+
+```
+gRPC server listening on :9090 (mTLS enabled)
+```
+
+<details>
+<summary>Без Docker Compose</summary>
 
 ```bash
-docker build -t wg-agent .
-
-docker run -d \
+sudo docker build -t wg-agent .
+sudo docker run -d \
   --name wg-agent \
   --restart unless-stopped \
   --privileged \
@@ -38,32 +176,104 @@ docker run -d \
   wg-agent
 ```
 
-## Environment Variables
+</details>
 
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `AGENT_GRPC_PORT` | `9090` | gRPC server port |
-| `AGENT_TLS_CERT` | `/etc/wg-agent/server.crt` | Server certificate path |
-| `AGENT_TLS_KEY` | `/etc/wg-agent/server.key` | Server private key path |
-| `AGENT_TLS_CA` | `/etc/wg-agent/ca.crt` | CA certificate for client verification |
-| `AGENT_WG_CONFIG_DIR` | `/etc/wireguard` | WireGuard config directory |
-| `AGENT_BACKUP_DIR` | `/var/lib/wg-agent/backups` | Backup storage directory |
-| `AGENT_ALLOWED_INTERFACES` | `` | Comma-separated list of allowed interfaces (empty = all) |
-| `AGENT_BACKUP_RETENTION_DAYS` | `7` | Days to keep backups |
+## Шаг 5. Файрвол
 
-## Requirements
+Клиентам нужен UDP `51820`, а порт агента `9090` лучше открыть только для панели. mTLS и так не пустит чужих, но лишняя поверхность атаки ни к чему. IP, с которого подключается панель, уточните у администратора.
 
-- Docker with `--privileged` mode (or `--cap-add=NET_ADMIN -v /proc/sys/net:/proc/sys/net`)
-- `--network host` for WireGuard interface management
-- Access to `/etc/wireguard` directory
-
-## Certificate Setup
-
-The agent requires mTLS certificates. Generate them on the orchestrator (Servers → Download certs in the UI, or `GET /api/servers/{id}/certs`) and place them in `/etc/wg-agent/` on the host:
-
+```bash
+sudo ufw allow OpenSSH
+sudo ufw allow 51820/udp
+sudo ufw allow from <IP панели> to any port 9090 proto tcp
+sudo ufw enable
 ```
-/etc/wg-agent/
-├── ca.crt        # CA certificate (same as orchestrator)
-├── server.crt    # Agent server certificate
-└── server.key    # Agent server private key (chmod 600)
+
+Агент работает в сетевом пространстве хоста (`network_mode: host`), поэтому правила `ufw` к нему применяются как обычно.
+
+## Шаг 6. Проверка и первые клиенты
+
+1. В панели нажмите **«Проверить соединение»** у сервера. В карточке ноды должно появиться `Agent v1.0.0 on <hostname>`.
+2. **Если на сервере уже были клиенты**, откройте **Панель → «Импорт из конфига»**. Пиры из `wg0.conf` появятся в панели с сохранёнными `AllowedIPs`, `Endpoint` и `PersistentKeepalive`.
+   > Импорт синхронизирует панель с конфигом: пиры, которые есть в панели, но отсутствуют в `wg0.conf`, **будут удалены из панели**. Делайте импорт сразу после подключения, до того как заведёте клиентов через панель.
+3. Откройте **Пиры → «Добавить пир»**, затем скачайте `.conf` или покажите QR-код клиенту.
+4. Проверьте на сервере: `sudo wg show wg0`. Новый пир должен появиться без перезапуска интерфейса.
+
+## Несколько нод на один сервер
+
+Один «сервер» в панели может обслуживаться несколькими машинами с одинаковым набором пиров. Клиент получает один конфиг, а `Endpoint` — это домен с A-записями на все ноды.
+
+- На всех нодах в `[Interface]` должны быть **одинаковые `PrivateKey` и `ListenPort`**, иначе клиенты не подключатся к «чужой» ноде. Остальное (`Address`, `PostUp`, MTU) у каждой ноды своё.
+- В панели: сервер → **«Добавить ноду»** → адрес агента `host:9090`, интерфейс, публичный IP. Затем скачайте сертификаты **этой ноды** и установите агента по шагу 4.
+- Нажмите **«Проверить ноду»**: панель сверит ключ и порт с сервером.
+- Изменения пиров расходятся на все ноды. Если нода была недоступна, панель досинхронизирует её сама в течение пары минут, или можно нажать **«Пересинхронизировать конфиг»**.
+
+## Bypass-список для dnsmasq (опционально)
+
+Если на сервере dnsmasq заполняет ipset по списку доменов (`ipset=/domain/bypass_vpn`), панель может редактировать этот список. Добавьте в `.env`:
+
+```bash
+AGENT_DNSMASQ_BYPASS_CONF=/etc/dnsmasq.d/bypass.conf
+AGENT_DNSMASQ_IPSET_NAME=bypass_vpn
+AGENT_DNSMASQ_CMD_PREFIX=nsenter -t 1 -a --
 ```
+
+Файл `bypass.conf` должен уже существовать. `docker-compose.yml` монтирует `/etc/dnsmasq.d` и включает `pid: host`, поэтому `systemctl` и `ipset` выполняются в пространстве хоста через `nsenter`. Если переменные не заданы, функция выключена.
+
+## Переменные окружения
+
+| Переменная | По умолчанию | Описание |
+|------------|--------------|----------|
+| `AGENT_GRPC_PORT` | `9090` | Порт gRPC. Если меняете, укажите тот же порт в адресе агента в панели |
+| `AGENT_TLS_CERT` | `/etc/wg-agent/server.crt` | Сертификат агента |
+| `AGENT_TLS_KEY` | `/etc/wg-agent/server.key` | Ключ сертификата агента (`chmod 600`) |
+| `AGENT_TLS_CA` | `/etc/wg-agent/ca.crt` | CA панели, по нему проверяется клиентский сертификат |
+| `AGENT_WG_CONFIG_DIR` | `/etc/wireguard` | Каталог конфигов WireGuard |
+| `AGENT_BACKUP_DIR` | `/var/lib/wg-agent/backups` | Каталог бэкапов |
+| `AGENT_ALLOWED_INTERFACES` | пусто (все) | Интерфейсы через запятую, с которыми агенту разрешено работать. Рекомендуется `wg0` |
+| `AGENT_BACKUP_RETENTION_DAYS` | `7` | Через сколько дней удаляются бэкапы |
+| `AGENT_DNSMASQ_BYPASS_CONF` | пусто (выкл.) | Путь к `bypass.conf` |
+| `AGENT_DNSMASQ_IPSET_NAME` | `bypass_vpn` | Имя ipset для очистки |
+| `AGENT_DNSMASQ_CMD_PREFIX` | пусто | Префикс для `systemctl`/`ipset`, например `nsenter -t 1 -a --` |
+
+## Обслуживание
+
+**Обновление агента**
+
+```bash
+cd wg-agent
+git pull
+sudo docker compose up -d --build
+```
+
+**Продление сертификата.** Сертификат агента действует 1 год. Узнать дату окончания:
+
+```bash
+sudo openssl x509 -enddate -noout -in /etc/wg-agent/server.crt
+```
+
+Чтобы продлить, скачайте в панели новый архив (иконка «Скачать сертификаты агента» у ноды), распакуйте его в `/etc/wg-agent` по шагу 4 и выполните `sudo docker compose restart`.
+
+**Бэкапы** лежат в Docker-томе `wg-agent-backups`. В панели их можно посмотреть, скачать и восстановить на странице **«Бэкапы»**.
+
+**Отключение от панели.** Сначала остановите агента, затем удалите сервер в панели:
+
+```bash
+sudo docker compose down        # добавьте -v, чтобы удалить и бэкапы
+```
+
+WireGuard продолжит работать с последним записанным конфигом.
+
+## Устранение неполадок
+
+| Симптом | Причина и решение |
+|---------|-------------------|
+| Агент падает с `failed to load server cert` или `TLS … file not found` | Нет файлов в `/etc/wg-agent` или неверные права. Проверьте `ls -l /etc/wg-agent`: там должны быть `ca.crt`, `server.crt`, `server.key` |
+| `WireGuard config dir not found` | Нет `/etc/wireguard` на хосте. Выполните шаг 1 |
+| Панель: `connection refused` или таймаут | Агент не запущен (`docker compose ps`), порт `9090` закрыт файрволом или у провайдера, либо в панели указан неверный адрес агента |
+| Панель: `x509: certificate is valid for X, not Y` | Адрес агента в панели не совпадает с тем, на который выпущен сертификат. Скачайте сертификаты заново и перезапустите агента |
+| Панель: `interface wg0 is not in allowed list` | Интерфейс не указан в `AGENT_ALLOWED_INTERFACES` |
+| Панель: `syncconf failed` | Ошибка в `wg0.conf`. Проверьте `sudo wg-quick strip wg0` и `sudo wg show wg0` |
+| Нода в панели помечена как рассинхронизированная | Панель повторяет отправку сама раз в минуту. Причина видна в карточке ноды, повторить сразу можно кнопкой «Пересинхронизировать конфиг» |
+
+Логи агента: `sudo docker compose logs -f wg-agent`.
